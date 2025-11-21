@@ -167,7 +167,7 @@ create_android_user() {
         return 0
     fi
     
-    # Create user
+    # Try to create user
     local result
     result=$(adb_shell "pm create-user '$user_name'" 2>&1)
     
@@ -180,6 +180,25 @@ create_android_user() {
         return 0
     else
         log_error "Failed to create user: $result"
+        
+        # Check for common errors
+        if echo "$result" | grep -qi "permission\|not allowed\|denied"; then
+            echo ""
+            echo -e "${YELLOW}═══════════════════════════════════════${NC}"
+            echo -e "${RED}ERROR: Permission Denied${NC}"
+            echo -e "${YELLOW}═══════════════════════════════════════${NC}"
+            echo ""
+            echo "Cloudphone/Redfinger mungkin tidak mengizinkan create user."
+            echo ""
+            echo -e "${CYAN}Solusi:${NC}"
+            echo "1. Gunakan fitur clone bawaan Redfinger"
+            echo "2. Atau hubungi support Redfinger untuk enable multi-user"
+            echo ""
+            echo -e "${YELLOW}Note:${NC} Script ini memerlukan Android multi-user support."
+            echo "Tidak semua cloudphone provider mengizinkan fitur ini."
+            echo ""
+        fi
+        
         return 1
     fi
 }

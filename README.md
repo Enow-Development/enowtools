@@ -22,8 +22,18 @@ Script Termux untuk manage multiple clone aplikasi Roblox Lite di cloudphone den
 
 ### Software
 - ✅ **Termux** - Terminal emulator untuk Android
-- ✅ **ADB** - Android Debug Bridge (biasanya sudah ada di cloudphone)
-- ✅ **Roblox Lite APK** - Custom/lite version dari Roblox
+- ✅ **Roblox App** - Install dari Play Store atau APK
+
+> [!IMPORTANT]
+> **Cloudphone Compatibility**
+> 
+> Script ini menggunakan **Android Multi-User** untuk cloning. Beberapa cloudphone provider (seperti Redfinger) mungkin **membatasi atau menonaktifkan** fitur multi-user.
+> 
+> **Jika gagal create clone:**
+> - Gunakan fitur clone bawaan cloudphone provider Anda, ATAU
+> - Hubungi support provider untuk enable multi-user support
+> 
+> Alternative: Beberapa cloudphone sudah punya fitur clone built-in yang bisa dipakai.
 
 ### Termux Packages
 ```bash
@@ -42,41 +52,58 @@ adb devices
 
 ## 🚀 Installation
 
-### 1. Clone Repository
+### 1. Di Termux (Redfinger/Cloudphone)
+
 ```bash
-cd ~
-git clone <repository-url> roblox-manager
-cd roblox-manager
+# Install dependencies
+pkg update && pkg upgrade
+pkg install git jq
+
+# Clone repository
+git clone https://github.com/Enow-Development/enowtools.git
+cd enowtools
+
+# Setup permissions
+chmod +x enowtools roblox-manager.sh lib/*.sh
 ```
 
-### 2. Setup APK
-Upload Roblox Lite APK ke device Anda, misalnya:
-```bash
-# Via ADB dari PC
-adb push roblox-lite.apk /sdcard/Download/
+### 2. Install Roblox
 
-# Atau download langsung di device
+Pastikan Roblox **sudah terinstall** di device Anda:
+- Via Play Store, ATAU
+- Via APK file
+
+**Script akan clone dari aplikasi yang sudah terinstall**, jadi tidak perlu APK file terpisah!
+
+### 3. Inisialisasi
+```bash
+./enowtools
+# Pilih menu sesuai kebutuhan!
 ```
 
-### 3. Konfigurasi
-Edit [config/config.json](file:///h:/Roblox%20Manager/config/config.json):
-```json
-{
-  "roblox_package": "com.roblox.client",
-  "roblox_apk_path": "/sdcard/Download/roblox-lite.apk",
-  "monitoring_interval": 30,
-  "freeform_enabled": true,
-  "auto_restart": true,
-  "max_restart_attempts": 3,
-  "log_level": "info"
-}
-```
+**Quick Start Workflow:**
+1. Pilih `[1]` - Init (check installation)
+2. Pilih `[2]` - Buat 3 clone
+3. Pilih `[5]` - Set cookie untuk setiap clone
+4. Pilih `[6]` - Inject semua cookie
+5. Pilih `[15]` - Enable freeform (pilih 1)
+6. Pilih `[9]` - Launch semua
+7. Pilih `[11]` - Start monitoring
 
-**Note:** Package name biasanya tetap `com.roblox.client` meskipun menggunakan APK lite/custom. Hanya ubah jika APK Anda menggunakan package name yang berbeda.
+Done! 🎉
 
-### 4. Inisialisasi
+---
+
+## 📖 Cara Pakai - Command Line (Advanced)
+
+Jika prefer command line tradisional:
+
+### Create Clones
+
+**Script akan clone dari app yang sudah terinstall!**
+
+Buat 4 clone Roblox:
 ```bash
-./roblox-manager.sh init
 ./roblox-manager.sh clone 4
 ```
 
@@ -184,18 +211,17 @@ Stop monitoring:
 ./roblox-manager.sh monitor stop
 ```
 
-### Update APK
+### Update Clones
 
-Update semua clones dengan APK baru:
+Update semua clones ke versi terbaru:
+
 ```bash
-# Upload APK baru ke device
-adb push roblox-lite-v2.apk /sdcard/Download/roblox-lite-v2.apk
-
-# Update semua clones
-./roblox-manager.sh update /sdcard/Download/roblox-lite-v2.apk
+# 1. Update Roblox app utama (dari Play Store atau install APK baru)
+# 2. Jalankan update command
+./roblox-manager.sh update
 ```
 
-Data apps akan tetap preserved!
+Script akan otomatis sync semua clone ke versi yang sama dengan app utama!
 
 ### Configuration
 
@@ -267,7 +293,24 @@ roblox-manager/
 
 ## 🛠️ Troubleshooting
 
-### ADB Not Connected
+### "Failed to create Android user" / "Permission denied"
+
+**Problem:** Cloudphone tidak mengizinkan create user baru.
+
+**Solution:**
+```bash
+# Opsi 1: Gunakan fitur clone bawaan cloudphone
+# Redfinger/cloudphone biasanya punya fitur clone apps built-in
+
+# Opsi 2: Hubungi support cloudphone
+# Minta enable Android multi-user support
+
+# Opsi 3: Test apakah multi-user available
+pm list users
+# Jika hanya ada 1 user, kemungkinan multi-user disabled
+```
+
+### APK Not Found
 ```bash
 # Enable ADB
 settings put global adb_enabled 1
