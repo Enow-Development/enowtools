@@ -1,0 +1,14 @@
+{
+    "roblox_package": "com.roblox.client",
+    "roblox_apk_path": "/sdcard/Download/roblox-lite.apk",
+    "monitoring_interval": 30,
+    "freeform_enabled": true,
+    "freeform_layout": "grid",
+    "auto_restart": true,
+    "max_restart_attempts": 3,
+    "restart_delay": 5,
+    "log_level": "info",
+    "cloudphone_mode": true,
+    "adb_host": "localhost",
+    "adb_port": 5037
+}

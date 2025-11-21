@@ -1,0 +1,613 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# enowtools - Interactive menu untuk Roblox Manager
+# Author: Roblox Manager Team
+# Description: User-friendly interactive menu
+
+set -e
+
+# Script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source libraries
+source "${SCRIPT_DIR}/lib/utils.sh"
+source "${SCRIPT_DIR}/lib/clone-manager.sh"
+source "${SCRIPT_DIR}/lib/cookie-injector.sh"
+source "${SCRIPT_DIR}/lib/freeform-manager.sh"
+source "${SCRIPT_DIR}/lib/monitor.sh"
+
+VERSION="1.0.0"
+
+#######################################
+# Clear screen dan show header
+#######################################
+show_header() {
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}     ${MAGENTA}ENOW ROBLOX MANAGER${NC} v${VERSION}     ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}    ${YELLOW}Multi-Clone Manager Tool${NC}        ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════╝${NC}"
+    echo ""
+}
+
+#######################################
+# Show main menu
+#######################################
+show_menu() {
+    show_header
+    
+    # Show quick status
+    local instance_count
+    instance_count=$(get_instance_count)
+    
+    local monitor_status
+    if is_monitor_running; then
+        monitor_status="${GREEN}Running${NC}"
+    else
+        monitor_status="${RED}Stopped${NC}"
+    fi
+    
+    local freeform_status
+    if is_freeform_supported; then
+        freeform_status="${GREEN}Enabled${NC}"
+    else
+        freeform_status="${YELLOW}Disabled${NC}"
+    fi
+    
+    echo -e "${BLUE}Status:${NC} Clones: ${CYAN}$instance_count${NC} | Monitor: $monitor_status | Freeform: $freeform_status"
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════${NC}"
+    echo -e "${GREEN}MENU UTAMA${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════${NC}"
+    echo ""
+    echo -e "${YELLOW}[1]${NC}  Inisialisasi & Check System"
+    echo -e "${YELLOW}[2]${NC}  Buat Clone Baru"
+    echo -e "${YELLOW}[3]${NC}  Lihat Semua Clone"
+    echo -e "${YELLOW}[4]${NC}  Hapus Clone"
+    echo ""
+    echo -e "${CYAN}─── Cookie Management ───${NC}"
+    echo -e "${YELLOW}[5]${NC}  Set Cookie untuk Clone"
+    echo -e "${YELLOW}[6]${NC}  Inject Semua Cookie"
+    echo ""
+    echo -e "${CYAN}─── Clone Control ───${NC}"
+    echo -e "${YELLOW}[7]${NC}  Start Clone"
+    echo -e "${YELLOW}[8]${NC}  Stop Clone"
+    echo -e "${YELLOW}[9]${NC}  Launch Semua Clone (Freeform)"
+    echo -e "${YELLOW}[10]${NC} Rearrange Windows"
+    echo ""
+    echo -e "${CYAN}─── Monitor & Maintenance ───${NC}"
+    echo -e "${YELLOW}[11]${NC} Start Monitoring"
+    echo -e "${YELLOW}[12]${NC} Stop Monitoring"
+    echo -e "${YELLOW}[13]${NC} Status Monitoring"
+    echo -e "${YELLOW}[14]${NC} Lihat Monitor Logs"
+    echo ""
+    echo -e "${CYAN}─── Advanced ───${NC}"
+    echo -e "${YELLOW}[15]${NC} Enable/Disable Freeform"
+    echo -e "${YELLOW}[16]${NC} Update Semua Clone (APK Baru)"
+    echo -e "${YELLOW}[17]${NC} Konfigurasi"
+    echo ""
+    echo -e "${YELLOW}[0]${NC}  Keluar"
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════${NC}"
+    echo -n -e "${GREEN}Pilih menu [0-17]:${NC} "
+}
+
+#######################################
+# Pause untuk user baca output
+#######################################
+pause() {
+    echo ""
+    echo -n -e "${YELLOW}Tekan Enter untuk kembali ke menu...${NC}"
+    read -r
+}
+
+#######################################
+# Menu 1: Inisialisasi
+#######################################
+menu_init() {
+    show_header
+    echo -e "${GREEN}[1] INISIALISASI & CHECK SYSTEM${NC}"
+    echo ""
+    
+    # Check dependencies
+    check_dependencies
+    
+    # Check ADB connection
+    echo -n "Checking ADB connection... "
+    if adb_is_connected; then
+        echo -e "${GREEN}✓${NC}"
+    else
+        echo -e "${RED}✗${NC}"
+        echo ""
+        echo -e "${YELLOW}Warning:${NC} ADB not connected"
+        pause
+        return
+    fi
+    
+    # Check APK
+    local apk_path
+    apk_path=$(get_config "roblox_apk_path")
+    
+    echo -n "Checking Roblox APK... "
+    if adb_shell "test -f '$apk_path' && echo 'exists'" | grep -q "exists"; then
+        echo -e "${GREEN}✓${NC}"
+        echo -e "  ${BLUE}APK Path:${NC} $apk_path"
+    else
+        echo -e "${RED}✗${NC}"
+        echo ""
+        echo -e "${YELLOW}Warning:${NC} APK not found at: $apk_path"
+        echo "Please place your Roblox APK there or update config"
+    fi
+    
+    # Check freeform
+    echo -n "Checking freeform support... "
+    if is_freeform_supported; then
+        echo -e "${GREEN}✓${NC}"
+    else
+        echo -e "${YELLOW}Not enabled${NC}"
+        echo "  You can enable it from menu [15]"
+    fi
+    
+    echo ""
+    log_success "Initialization complete"
+    
+    pause
+}
+
+#######################################
+# Menu 2: Buat Clone
+#######################################
+menu_create_clone() {
+    show_header
+    echo -e "${GREEN}[2] BUAT CLONE BARU${NC}"
+    echo ""
+    
+    echo -n "Berapa clone yang ingin dibuat? "
+    read -r count
+    
+    if ! [[ "$count" =~ ^[0-9]+$ ]] || [ "$count" -lt 1 ]; then
+        log_error "Jumlah tidak valid"
+        pause
+        return
+    fi
+    
+    echo -n "Nama prefix (tekan Enter untuk default): "
+    read -r name_prefix
+    
+    if [ -z "$name_prefix" ]; then
+        name_prefix="Roblox_Clone"
+    fi
+    
+    echo ""
+    log_info "Membuat $count clone dengan nama $name_prefix..."
+    echo ""
+    
+    for ((i=0; i<count; i++)); do
+        local clone_name="${name_prefix}_${i}"
+        create_clone "$clone_name"
+        echo ""
+    done
+    
+    log_success "Selesai membuat $count clone"
+    
+    pause
+}
+
+#######################################
+# Menu 3: Lihat Clone
+#######################################
+menu_list_clones() {
+    show_header
+    echo -e "${GREEN}[3] DAFTAR CLONE${NC}"
+    echo ""
+    
+    list_clones
+    
+    pause
+}
+
+#######################################
+# Menu 4: Hapus Clone
+#######################################
+menu_delete_clone() {
+    show_header
+    echo -e "${GREEN}[4] HAPUS CLONE${NC}"
+    echo ""
+    
+    # Show current clones
+    list_clones
+    
+    echo ""
+    echo -n "Masukkan ID clone yang ingin dihapus (atau 'q' untuk batal): "
+    read -r instance_id
+    
+    if [ "$instance_id" = "q" ]; then
+        return
+    fi
+    
+    echo ""
+    echo -n "Yakin ingin hapus $instance_id? (y/n): "
+    read -r confirm
+    
+    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+        delete_clone "$instance_id"
+        echo ""
+        log_success "Clone $instance_id berhasil dihapus"
+    else
+        log_info "Dibatalkan"
+    fi
+    
+    pause
+}
+
+#######################################
+# Menu 5: Set Cookie
+#######################################
+menu_set_cookie() {
+    show_header
+    echo -e "${GREEN}[5] SET COOKIE${NC}"
+    echo ""
+    
+    # Show current clones
+    list_clones
+    
+    echo ""
+    echo -n "Masukkan ID clone (atau 'q' untuk batal): "
+    read -r instance_id
+    
+    if [ "$instance_id" = "q" ]; then
+        return
+    fi
+    
+    echo ""
+    local cookie
+    cookie=$(read_cookie_input)
+    
+    if [ $? -eq 0 ]; then
+        set_instance_cookie "$instance_id" "$cookie"
+        echo ""
+        log_success "Cookie disimpan untuk $instance_id"
+    fi
+    
+    pause
+}
+
+#######################################
+# Menu 6: Inject All Cookies
+#######################################
+menu_inject_cookies() {
+    show_header
+    echo -e "${GREEN}[6] INJECT SEMUA COOKIE${NC}"
+    echo ""
+    
+    inject_all_cookies
+    
+    echo ""
+    pause
+}
+
+#######################################
+# Menu 7: Start Clone
+#######################################
+menu_start_clone() {
+    show_header
+    echo -e "${GREEN}[7] START CLONE${NC}"
+    echo ""
+    
+    list_clones
+    
+    echo ""
+    echo -n "Masukkan ID clone (atau 'q' untuk batal): "
+    read -r instance_id
+    
+    if [ "$instance_id" = "q" ]; then
+        return
+    fi
+    
+    echo ""
+    start_clone "$instance_id"
+    
+    pause
+}
+
+#######################################
+# Menu 8: Stop Clone
+#######################################
+menu_stop_clone() {
+    show_header
+    echo -e "${GREEN}[8] STOP CLONE${NC}"
+    echo ""
+    
+    list_clones
+    
+    echo ""
+    echo -n "Masukkan ID clone (atau 'q' untuk batal): "
+    read -r instance_id
+    
+    if [ "$instance_id" = "q" ]; then
+        return
+    fi
+    
+    echo ""
+    stop_clone "$instance_id"
+    
+    pause
+}
+
+#######################################
+# Menu 9: Launch All Freeform
+#######################################
+menu_launch_all() {
+    show_header
+    echo -e "${GREEN}[9] LAUNCH SEMUA CLONE (FREEFORM)${NC}"
+    echo ""
+    
+    # Check freeform first
+    if ! is_freeform_supported; then
+        log_warn "Freeform belum enabled"
+        echo -n "Enable freeform sekarang? (y/n): "
+        read -r confirm
+        
+        if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+            enable_freeform
+            echo ""
+        else
+            log_info "Dibatalkan"
+            pause
+            return
+        fi
+    fi
+    
+    log_info "Meluncurkan semua clone dalam freeform mode..."
+    echo ""
+    
+    launch_all_instances_freeform
+    
+    echo ""
+    pause
+}
+
+#######################################
+# Menu 10: Rearrange
+#######################################
+menu_rearrange() {
+    show_header
+    echo -e "${GREEN}[10] REARRANGE WINDOWS${NC}"
+    echo ""
+    
+    rearrange_freeform_windows
+    
+    pause
+}
+
+#######################################
+# Menu 11: Start Monitor
+#######################################
+menu_start_monitor() {
+    show_header
+    echo -e "${GREEN}[11] START MONITORING${NC}"
+    echo ""
+    
+    start_monitor
+    
+    pause
+}
+
+#######################################
+# Menu 12: Stop Monitor
+#######################################
+menu_stop_monitor() {
+    show_header
+    echo -e "${GREEN}[12] STOP MONITORING${NC}"
+    echo ""
+    
+    stop_monitor
+    
+    pause
+}
+
+#######################################
+# Menu 13: Monitor Status
+#######################################
+menu_monitor_status() {
+    show_header
+    echo -e "${GREEN}[13] STATUS MONITORING${NC}"
+    echo ""
+    
+    monitor_status
+    
+    pause
+}
+
+#######################################
+# Menu 14: Monitor Logs
+#######################################
+menu_monitor_logs() {
+    show_header
+    echo -e "${GREEN}[14] MONITOR LOGS${NC}"
+    echo ""
+    
+    echo -n "Tampilkan berapa baris log? (default: 20): "
+    read -r lines
+    
+    if [ -z "$lines" ]; then
+        lines=20
+    fi
+    
+    echo ""
+    view_monitor_logs "$lines"
+    
+    pause
+}
+
+#######################################
+# Menu 15: Freeform Toggle
+#######################################
+menu_freeform() {
+    show_header
+    echo -e "${GREEN}[15] FREEFORM CONTROL${NC}"
+    echo ""
+    
+    check_freeform_status
+    
+    echo ""
+    echo "1) Enable Freeform"
+    echo "2) Disable Freeform"
+    echo "0) Kembali"
+    echo ""
+    echo -n "Pilih: "
+    read -r choice
+    
+    case $choice in
+        1)
+            echo ""
+            enable_freeform
+            ;;
+        2)
+            echo ""
+            disable_freeform
+            ;;
+    esac
+    
+    pause
+}
+
+#######################################
+# Menu 16: Update APK
+#######################################
+menu_update_apk() {
+    show_header
+    echo -e "${GREEN}[16] UPDATE SEMUA CLONE${NC}"
+    echo ""
+    
+    local current_apk
+    current_apk=$(get_config "roblox_apk_path")
+    
+    echo -e "${BLUE}Current APK:${NC} $current_apk"
+    echo ""
+    echo -n "Path APK baru (tekan Enter untuk pakai yang sama): "
+    read -r new_apk
+    
+    if [ -z "$new_apk" ]; then
+        new_apk="$current_apk"
+    fi
+    
+    echo ""
+    echo -n "Update semua clone dengan APK ini? (y/n): "
+    read -r confirm
+    
+    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+        echo ""
+        update_all_clones "$new_apk"
+    else
+        log_info "Dibatalkan"
+    fi
+    
+    pause
+}
+
+#######################################
+# Menu 17: Config
+#######################################
+menu_config() {
+    show_header
+    echo -e "${GREEN}[17] KONFIGURASI${NC}"
+    echo ""
+    
+    echo "1) Lihat Config"
+    echo "2) Edit Monitoring Interval"
+    echo "3) Edit Max Restart Attempts"
+    echo "4) Edit Restart Delay"
+    echo "5) Edit Log Level"
+    echo "0) Kembali"
+    echo ""
+    echo -n "Pilih: "
+    read -r choice
+    
+    case $choice in
+        1)
+            echo ""
+            echo -e "${CYAN}Current Configuration:${NC}"
+            echo ""
+            cat "${CONFIG_DIR}/config.json" | jq .
+            ;;
+        2)
+            echo ""
+            echo -n "Monitoring interval (detik, default: 30): "
+            read -r value
+            if [ -n "$value" ]; then
+                set_config "monitoring_interval" "$value"
+            fi
+            ;;
+        3)
+            echo ""
+            echo -n "Max restart attempts (default: 3): "
+            read -r value
+            if [ -n "$value" ]; then
+                set_config "max_restart_attempts" "$value"
+            fi
+            ;;
+        4)
+            echo ""
+            echo -n "Restart delay (detik, default: 5): "
+            read -r value
+            if [ -n "$value" ]; then
+                set_config "restart_delay" "$value"
+            fi
+            ;;
+        5)
+            echo ""
+            echo "Log level: debug, info, warn, error"
+            echo -n "Pilih: "
+            read -r value
+            if [ -n "$value" ]; then
+                set_config "log_level" "$value"
+            fi
+            ;;
+    esac
+    
+    pause
+}
+
+#######################################
+# Main loop
+#######################################
+main() {
+    while true; do
+        show_menu
+        read -r choice
+        
+        case $choice in
+            1) menu_init ;;
+            2) menu_create_clone ;;
+            3) menu_list_clones ;;
+            4) menu_delete_clone ;;
+            5) menu_set_cookie ;;
+            6) menu_inject_cookies ;;
+            7) menu_start_clone ;;
+            8) menu_stop_clone ;;
+            9) menu_launch_all ;;
+            10) menu_rearrange ;;
+            11) menu_start_monitor ;;
+            12) menu_stop_monitor ;;
+            13) menu_monitor_status ;;
+            14) menu_monitor_logs ;;
+            15) menu_freeform ;;
+            16) menu_update_apk ;;
+            17) menu_config ;;
+            0)
+                clear
+                echo -e "${GREEN}Terima kasih telah menggunakan Enow Roblox Manager!${NC}"
+                echo ""
+                exit 0
+                ;;
+            *)
+                echo ""
+                echo -e "${RED}Pilihan tidak valid${NC}"
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+# Run main
+main
