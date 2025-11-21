@@ -82,7 +82,7 @@ show_menu() {
     echo ""
     echo -e "${CYAN}─── Advanced ───${NC}"
     echo -e "${YELLOW}[15]${NC} Enable/Disable Freeform"
-    echo -e "${YELLOW}[16]${NC} Update Semua Clone (APK Baru)"
+    echo -e "${YELLOW}[16]${NC} Update Semua Clone (dari app installed)"
     echo -e "${YELLOW}[17]${NC} Konfigurasi"
     echo ""
     echo -e "${YELLOW}[0]${NC}  Keluar"
@@ -133,19 +133,26 @@ menu_init() {
         fi
     fi
     
-    # Check APK
-    local apk_path
-    apk_path=$(get_config "roblox_apk_path")
+    # Check if Roblox is installed
+    local package
+    package=$(get_config "roblox_package")
     
-    echo -n "Checking Roblox APK... "
-    if adb_shell "test -f '$apk_path' && echo 'exists'" | grep -q "exists"; then
+    echo -n "Checking Roblox installation... "
+    if adb_shell "pm list packages --user 0 | grep -q '^package:${package}$'"; then
         echo -e "${GREEN}✓${NC}"
-        echo -e "  ${BLUE}APK Path:${NC} $apk_path"
+        echo -e "  ${BLUE}Package:${NC} $package"
+        
+        # Get version
+        local version
+        version=$(adb_shell "dumpsys package $package | grep versionName" | head -n1 | cut -d'=' -f2 | tr -d '\r\n' || echo "unknown")
+        if [ -n "$version" ] && [ "$version" != "unknown" ]; then
+            echo -e "  ${BLUE}Version:${NC} $version"
+        fi
     else
         echo -e "${RED}✗${NC}"
         echo ""
-        echo -e "${YELLOW}Warning:${NC} APK not found at: $apk_path"
-        echo "Please place your Roblox APK there or update config"
+        echo -e "${YELLOW}Warning:${NC} Roblox is not installed"
+        echo "Install Roblox first, then run this script"
     fi
     
     # Check freeform
@@ -482,32 +489,27 @@ menu_freeform() {
 }
 
 #######################################
-# Menu 16: Update APK
+# Menu 16: Update All
 #######################################
 menu_update_apk() {
     show_header
     echo -e "${GREEN}[16] UPDATE SEMUA CLONE${NC}"
     echo ""
     
-    local current_apk
-    current_apk=$(get_config "roblox_apk_path")
+    local package
+    package=$(get_config "roblox_package")
     
-    echo -e "${BLUE}Current APK:${NC} $current_apk"
+    echo -e "${BLUE}Package:${NC} $package"
     echo ""
-    echo -n "Path APK baru (tekan Enter untuk pakai yang sama): "
-    read -r new_apk
-    
-    if [ -z "$new_apk" ]; then
-        new_apk="$current_apk"
-    fi
-    
+    echo "Script akan update semua clone dari aplikasi yang terinstall."
+    echo "Pastikan aplikasi utama sudah diupdate ke versi terbaru."
     echo ""
-    echo -n "Update semua clone dengan APK ini? (y/n): "
+    echo -n "Update semua clone sekarang? (y/n): "
     read -r confirm
     
     if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
         echo ""
-        update_all_clones "$new_apk"
+        update_all_clones
     else
         log_info "Dibatalkan"
     fi

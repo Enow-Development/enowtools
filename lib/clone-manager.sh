@@ -282,13 +282,13 @@ create_clone() {
     local package
     package=$(get_config "roblox_package")
     
-    local apk_path
-    apk_path=$(get_config "roblox_apk_path")
-    
-    # Validate APK exists on device
-    if ! adb_shell "test -f '$apk_path' && echo 'exists'" | grep -q "exists"; then
-        die "APK not found on device: $apk_path"
+    # Check if package is installed on primary user (user 0)
+    log_info "Checking if $package is installed..."
+    if ! adb_shell "pm list packages --user 0 | grep -q '^package:${package}$'"; then
+        die "Package $package is not installed. Please install Roblox first, then run this script."
     fi
+    
+    log_success "Found installed package: $package"
     
     # Get next available user ID
     local current_count
@@ -310,10 +310,18 @@ create_clone() {
         die "Failed to create Android user"
     fi
     
-    # Install APK for user
-    if ! install_apk_for_user "$apk_path" "$user_id"; then
+    # Install existing package to new user (no APK file needed!)
+    log_info "Installing $package to user $user_id..."
+    
+    local result
+    result=$(adb_shell "pm install-existing --user $user_id $package" 2>&1)
+    
+    if echo "$result" | grep -q "Success"; then
+        log_success "Package installed for user $user_id"
+    else
+        log_error "Failed to install package: $result"
         delete_android_user "$user_id"
-        die "Failed to install APK for user"
+        die "Failed to install package for user"
     fi
     
     # Add to accounts file
@@ -363,32 +371,26 @@ delete_clone() {
 }
 
 #######################################
-# Update all clones with new APK
+# Update all clones with latest version
 # Arguments:
-#   $1 - New APK path on device
+#   None
 # Returns:
 #   0 on success
 #######################################
 update_all_clones() {
-    local new_apk_path="${1:-}"
-    
-    if [ -z "$new_apk_path" ]; then
-        new_apk_path=$(get_config "roblox_apk_path")
-    fi
-    
     if ! adb_is_connected; then
         die "ADB not connected"
     fi
     
-    # Validate new APK
-    if ! adb_shell "test -f '$new_apk_path' && echo 'exists'" | grep -q "exists"; then
-        die "APK not found: $new_apk_path"
-    fi
-    
-    log_info "Updating all clones with new APK..."
-    
     local package
     package=$(get_config "roblox_package")
+    
+    # Check if package is installed on primary user
+    if ! adb_shell "pm list packages --user 0 | grep -q '^package:${package}$'"; then
+        die "Package $package is not installed on primary user. Please update the app first."
+    fi
+    
+    log_info "Updating all clones from installed app..."
     
     # Get all instances
     local instances
@@ -417,10 +419,15 @@ update_all_clones() {
         # Stop app if running
         stop_clone "$instance_id" 2>/dev/null || true
         
-        # Install new APK (this will update if already installed)
-        if install_apk_for_user "$new_apk_path" "$user_id"; then
+        # Install-existing will update to latest version
+        local result
+        result=$(adb_shell "pm install-existing --user $user_id $package" 2>&1)
+        
+        if echo "$result" | grep -q "Success"; then
+            log_success "Updated $instance_id"
             ((updated++))
         else
+            log_error "Failed to update $instance_id"
             ((failed++))
         fi
     done

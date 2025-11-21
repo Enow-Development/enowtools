@@ -133,24 +133,28 @@ cmd_init() {
         echo -e "${YELLOW}Creating default config${NC}"
     fi
     
-    # Validate APK
-    local apk_path
-    apk_path=$(get_config "roblox_apk_path")
+    # Check if Roblox is installed
+    local package
+    package=$(get_config "roblox_package")
     
-    echo -n "Checking Roblox APK... "
-    if adb_shell "test -f '$apk_path' && echo 'exists'" | grep -q "exists"; then
+    echo -n "Checking Roblox installation... "
+    if adb_shell "pm list packages --user 0 | grep -q '^package:${package}$'"; then
         echo -e "${GREEN}✓${NC}"
         
-        # Show APK info
-        local package
-        package=$(get_config "roblox_package")
+        # Show package info
         echo -e "  ${BLUE}Package:${NC} $package"
-        echo -e "  ${BLUE}APK Path:${NC} $apk_path"
+        
+        # Get version if possible
+        local version
+        version=$(adb_shell "dumpsys package $package | grep versionName" | head -n1 | cut -d'=' -f2 | tr -d '\r\n' || echo "unknown")
+        if [ -n "$version" ] && [ "$version" != "unknown" ]; then
+            echo -e "  ${BLUE}Version:${NC} $version"
+        fi
     else
         echo -e "${RED}✗${NC}"
         echo ""
-        echo -e "${YELLOW}Warning:${NC} APK not found at: $apk_path"
-        echo "Please update the path in config.json or place your APK at that location"
+        echo -e "${YELLOW}Warning:${NC} Roblox ($package) is not installed"
+        echo "Please install Roblox from Play Store or APK first"
     fi
     
     # Check freeform support
@@ -270,7 +274,8 @@ main() {
             stop_clone "$1"
             ;;
         update)
-            update_all_clones "$@"
+            log_info "Updating all clones from installed app..."
+            update_all_clones
             ;;
         inject)
             if [ -z "$1" ]; then
