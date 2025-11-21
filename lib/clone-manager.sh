@@ -167,8 +167,31 @@ create_android_user() {
         return 0
     fi
     
-    # Try to create user
+    # Try Work Profile first (like Shelter) - more likely to work on cloudphone
+    log_info "Trying Work Profile (managed profile) method..."
     local result
+    result=$(adb_shell "pm create-user --profileOf 0 --managed '$user_name'" 2>&1)
+    
+    if echo "$result" | grep -q "Success"; then
+        # Extract user ID from result (format: Success: created user id 10)
+        local created_id
+        created_id=$(echo "$result" | grep -oP 'id \K[0-9]+' || echo "$user_id")
+        
+        log_success "Work Profile created: $user_name (ID: $created_id)"
+        
+        # Start the profile
+        adb_shell "am start-user $created_id" >/dev/null 2>&1
+        
+        # Update user_id if different
+        if [ "$created_id" != "$user_id" ]; then
+            log_info "Note: Created with ID $created_id instead of $user_id"
+        fi
+        
+        return 0
+    fi
+    
+    # Fallback: Try regular multi-user
+    log_info "Work Profile failed, trying regular multi-user..."
     result=$(adb_shell "pm create-user '$user_name'" 2>&1)
     
     if echo "$result" | grep -q "Success"; then
@@ -182,20 +205,23 @@ create_android_user() {
         log_error "Failed to create user: $result"
         
         # Check for common errors
-        if echo "$result" | grep -qi "permission\|not allowed\|denied"; then
+        if echo "$result" | grep -qi "permission\|not allowed\|denied\|not supported"; then
             echo ""
             echo -e "${YELLOW}═══════════════════════════════════════${NC}"
-            echo -e "${RED}ERROR: Permission Denied${NC}"
+            echo -e "${RED}ERROR: Cannot Create User/Profile${NC}"
             echo -e "${YELLOW}═══════════════════════════════════════${NC}"
             echo ""
-            echo "Cloudphone/Redfinger mungkin tidak mengizinkan create user."
+            echo "Cloudphone tidak mengizinkan create user atau work profile."
             echo ""
             echo -e "${CYAN}Solusi:${NC}"
-            echo "1. Gunakan fitur clone bawaan Redfinger"
-            echo "2. Atau hubungi support Redfinger untuk enable multi-user"
+            echo "1. Gunakan fitur clone bawaan Redfinger/cloudphone"
+            echo "2. Install Shelter app dari Play Store, lalu:"
+            echo "   - Buka Shelter → Create work profile"
+            echo "   - Clone Roblox via Shelter"
+            echo "   - Script ini bisa manage Shelter clones"
             echo ""
-            echo -e "${YELLOW}Note:${NC} Script ini memerlukan Android multi-user support."
-            echo "Tidak semua cloudphone provider mengizinkan fitur ini."
+            echo -e "${YELLOW}Note:${NC} Script gagal karena platform restrictions."
+            echo "Redfinger mungkin perlu enable work profile support."
             echo ""
         fi
         
