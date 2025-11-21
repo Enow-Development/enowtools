@@ -111,16 +111,26 @@ menu_init() {
     # Check dependencies
     check_dependencies
     
-    # Check ADB connection
-    echo -n "Checking ADB connection... "
-    if adb_is_connected; then
-        echo -e "${GREEN}✓${NC}"
+    # Check environment
+    echo -n "Detecting environment... "
+    if is_termux; then
+        echo -e "${GREEN}Termux/Cloudphone Mode${NC}"
+        echo -e "  ${CYAN}✓${NC} Running directly in Android"
+        echo -e "  ${CYAN}✓${NC} No ADB needed"
     else
-        echo -e "${RED}✗${NC}"
-        echo ""
-        echo -e "${YELLOW}Warning:${NC} ADB not connected"
-        pause
-        return
+        echo -e "${GREEN}External Mode (via ADB)${NC}"
+        
+        # Check ADB connection
+        echo -n "Checking ADB connection... "
+        if adb_is_connected; then
+            echo -e "${GREEN}✓${NC}"
+        else
+            echo -e "${RED}✗${NC}"
+            echo ""
+            echo -e "${YELLOW}Warning:${NC} ADB not connected"
+            pause
+            return
+        fi
     fi
     
     # Check APK

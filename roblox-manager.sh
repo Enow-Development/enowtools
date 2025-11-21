@@ -103,16 +103,26 @@ cmd_init() {
     # Check dependencies
     check_dependencies
     
-    # Check ADB connection
-    echo -n "Checking ADB connection... "
-    if adb_is_connected; then
-        echo -e "${GREEN}✓${NC}"
+    # Check environment
+    echo -n "Detecting environment... "
+    if is_termux; then
+        echo -e "${GREEN}Termux/Cloudphone${NC}"
+        echo -e "  ${BLUE}Mode:${NC} Direct (no ADB needed)"
     else
-        echo -e "${RED}✗${NC}"
-        echo ""
-        echo -e "${YELLOW}Warning:${NC} ADB not connected"
-        echo "Make sure ADB is enabled and connected"
-        return 1
+        echo -e "${GREEN}External${NC}"
+        echo -e "  ${BLUE}Mode:${NC} Via ADB"
+        
+        # Check ADB connection
+        echo -n "Checking ADB connection... "
+        if adb_is_connected; then
+            echo -e "${GREEN}✓${NC}"
+        else
+            echo -e "${RED}✗${NC}"
+            echo ""
+            echo -e "${YELLOW}Warning:${NC} ADB not connected"
+            echo "Make sure ADB is enabled and connected"
+            return 1
+        fi
     fi
     
     # Check config

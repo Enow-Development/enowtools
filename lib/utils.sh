@@ -146,8 +146,13 @@ check_dependencies() {
     
     local missing_deps=()
     
-    # Required commands
-    local required_commands=("jq" "adb")
+    # Required commands (always needed)
+    local required_commands=("jq")
+    
+    # ADB only needed if NOT in Termux
+    if ! is_termux; then
+        required_commands+=("adb")
+    fi
     
     for cmd in "${required_commands[@]}"; do
         if ! command_exists "$cmd"; then
@@ -222,28 +227,49 @@ set_config() {
 }
 
 #######################################
+# Detect if running in Termux/Android directly
+# Returns:
+#   0 if in Termux, 1 otherwise
+#######################################
+is_termux() {
+    [ -n "$TERMUX_VERSION" ] || [ -d "/data/data/com.termux" ]
+}
+
+#######################################
 # ADB Helper: Check if ADB is connected
 # Returns:
-#   0 if connected, 1 otherwise
+#   0 if connected (or in Termux), 1 otherwise
 #######################################
 adb_is_connected() {
+    # If running in Termux, no ADB needed
+    if is_termux; then
+        return 0
+    fi
+    
+    # Otherwise check ADB connection
     adb devices 2>/dev/null | grep -q "device$"
 }
 
 #######################################
-# ADB Helper: Execute ADB shell command
+# ADB Helper: Execute shell command
 # Arguments:
 #   $@ - Command to execute
 # Returns:
 #   Command output
 #######################################
 adb_shell() {
-    if ! adb_is_connected; then
-        log_error "ADB not connected"
-        return 1
+    # If in Termux/Android directly, run command directly
+    if is_termux; then
+        eval "$@" 2>/dev/null
+    else
+        # Via ADB
+        if ! adb_is_connected; then
+            log_error "ADB not connected"
+            return 1
+        fi
+        
+        adb shell "$@" 2>/dev/null
     fi
-    
-    adb shell "$@" 2>/dev/null
 }
 
 #######################################
